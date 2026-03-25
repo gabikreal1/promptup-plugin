@@ -117,7 +117,7 @@ export interface EvalRecommendation {
   dimension_key: string;
   priority: 'low' | 'medium' | 'high';
   recommendation: string;
-  example?: string;
+  suggestions?: string[];
 }
 
 export interface EvalTrend {

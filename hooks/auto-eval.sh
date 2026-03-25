@@ -1,6 +1,6 @@
 #!/bin/bash
 # UserPromptSubmit hook: counts prompts, triggers background eval per config
-PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT:-$HOME/Desktop/promptupopensource}"
+PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT:-$HOME/.promptup/plugin}"
 DATA_DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.promptup}"
 COUNT_FILE="$DATA_DIR/prompt-count"
 CONFIG_FILE="$DATA_DIR/config.json"

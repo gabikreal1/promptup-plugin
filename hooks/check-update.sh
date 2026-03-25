@@ -1,6 +1,6 @@
 #!/bin/bash
 # SessionStart hook: checks for plugin update in background
-PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT:-$HOME/Desktop/promptupopensource}"
+PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT:-$HOME/.promptup/plugin}"
 DATA_DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.promptup}"
 UPDATE_FILE="$DATA_DIR/update-available"
 

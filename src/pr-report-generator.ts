@@ -233,25 +233,12 @@ function buildProgressBar(score: number, width = 20): string {
   return block.repeat(filled) + '⬜'.repeat(empty);
 }
 
-// Short explanation of what each dimension measures and why a score is low/high
-const DIMENSION_WHYS: Record<string, { measures: string; low: string; high: string }> = {
-  task_decomposition:     { measures: 'Breaking problems into subtasks', low: 'Gave broad instructions, no breakdown', high: 'Explicit step-by-step task splitting' },
-  prompt_specificity:     { measures: 'Constraints, context, examples in prompts', low: 'Short vague prompts, few details', high: 'Detailed prompts with constraints/examples' },
-  output_validation:      { measures: 'Checking Claude\'s output before accepting', low: 'Accepted output without review', high: 'Challenged errors, tested edge cases' },
-  iteration_quality:      { measures: 'Purposeful follow-ups that converge', low: 'Repetitive or unfocused follow-ups', high: 'Each iteration built on the last' },
-  strategic_tool_usage:   { measures: 'Deliberate choice of tools and capabilities', low: 'Relied on default tools only', high: 'Used Read/Grep/Edit strategically' },
-  context_management:     { measures: 'Managing information flow in conversation', low: 'Lost context, no re-establishment', high: 'Maintained context across exchanges' },
-  architectural_awareness:{ measures: 'System-level design understanding', low: 'No system design discussion', high: 'Discussed architecture and design patterns' },
-  error_anticipation:     { measures: 'Proactive failure mode thinking', low: 'No edge cases or error handling discussed', high: 'Anticipated failures before they happened' },
-  technical_vocabulary:   { measures: 'Precision of technical language', low: 'Generic non-technical language', high: 'Precise domain-specific terminology' },
-  dependency_reasoning:   { measures: 'Understanding component interactions', low: 'No dependency discussion', high: 'Reasoned about imports, APIs, data flow' },
-  tradeoff_articulation:  { measures: 'Weighing pros/cons of approaches', low: 'No alternatives considered', high: 'Explicitly weighed tradeoffs' },
-};
-
-function getDimWhy(key: string, score: number): string {
-  const info = DIMENSION_WHYS[key];
-  if (!info) return '';
-  return score < 40 ? info.low : score < 70 ? info.measures : info.high;
+/** Truncate reasoning to fit in a table cell */
+function truncReasoning(reasoning: string | undefined, max = 60): string {
+  if (!reasoning) return '';
+  const firstSentence = reasoning.split(/\.\s/)[0];
+  const text = firstSentence.length <= max ? firstSentence : firstSentence.slice(0, max - 1) + '…';
+  return text.replace(/\|/g, '/');
 }
 
 function buildMarkdown(opts: {
@@ -261,7 +248,7 @@ function buildMarkdown(opts: {
   decisions: DecisionRow[];
   commits: CommitInfo[];
   breakdown: DecisionBreakdown;
-  dimensionScores?: Array<{ key: string; score: number }>;
+  dimensionScores?: Array<{ key: string; score: number; reasoning?: string }>;
   userMessages?: number;
   assistantMessages?: number;
   evalCount?: number;
@@ -294,7 +281,7 @@ function buildMarkdown(opts: {
       for (const d of dimensionScores) {
         const label = d.key.replace(/_/g, ' ');
         const dimBar = buildProgressBar(d.score, 8);
-        const why = getDimWhy(d.key, d.score);
+        const why = truncReasoning(d.reasoning);
         lines.push(`| ${label} | ${dimBar} ${d.score} | ${why} |`);
       }
       lines.push('');
@@ -474,9 +461,12 @@ export async function generatePRReport(options: {
 
   // 10. Fetch evaluations (averaged across all evals) + message counts
   let compositeScore: number | null = null;
-  let dimensionScores: Array<{ key: string; score: number }> | undefined;
+  let dimensionScores: Array<{ key: string; score: number; reasoning?: string }> | undefined;
   let userMessages = 0;
   let assistantMessages = 0;
+
+  // Collect reasoning from the most recent eval (reasoning doesn't average)
+  let latestReasoning: Record<string, string> = {};
 
   const allEvals: Array<{ composite: number; dims: Array<{ key: string; score: number }> }> = [];
 
@@ -488,6 +478,12 @@ export async function generatePRReport(options: {
           (d: any) => ({ key: d.key as string, score: d.score as number }),
         );
         allEvals.push({ composite: evalRow.composite_score, dims });
+
+        // Capture reasoning from latest eval (last one wins)
+        const fullDims = JSON.parse(evalRow.dimension_scores) as Array<{ key: string; reasoning?: string }>;
+        for (const d of fullDims) {
+          if (d.reasoning) latestReasoning[d.key] = d.reasoning;
+        }
       } catch { /* skip malformed */ }
     }
 
@@ -514,6 +510,7 @@ export async function generatePRReport(options: {
     }
     dimensionScores = Object.entries(dimSums).map(([key, v]) => ({
       key,
+      reasoning: latestReasoning[key],
       score: Math.round(v.total / v.count),
     }));
   }
