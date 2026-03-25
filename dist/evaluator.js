@@ -11,6 +11,7 @@ import { ulid } from 'ulid';
 import { BASE_DIMENSIONS, BASE_DIMENSION_KEYS, DOMAIN_DIMENSIONS, DOMAIN_DIMENSION_KEYS, WEIGHT_PROFILES, } from './shared/dimensions.js';
 import { computeCompositeScore, computeDomainComposite, computeTechComposite, computeOverallComposite, computeGrandComposite, computeRiskFlagsWithHistory, } from './shared/scoring.js';
 import { getLatestEvaluation, insertEvaluation, insertDecision, } from './db.js';
+import { detectDecisions } from './decision-detector.js';
 /**
  * Combined role + skill roadmaps catalog for tech detection.
  * Mirrors the full list from @promptup/shared/roadmaps without importing it.
@@ -362,6 +363,19 @@ export async function evaluateSession(sessionId, messages, triggerType, weightPr
         domainDimensionScores = heuristic.domainDimensionScores;
         techExpertise = heuristicTechDetect(messages);
         recommendations = heuristic.recommendations;
+        // Extract decisions via heuristic detector (Claude path does this via LLM)
+        try {
+            const heuristicDecisions = detectDecisions(messages, sessionId);
+            if (heuristicDecisions.length > 0) {
+                for (const d of heuristicDecisions) {
+                    insertDecision(d);
+                }
+                console.log(`[eval] Heuristic extracted ${heuristicDecisions.length} decisions`);
+            }
+        }
+        catch (decErr) {
+            console.warn(`[eval] Heuristic decision extraction failed: ${decErr}`);
+        }
         rawEvaluation = JSON.stringify({
             activity_log: heuristicActivityLog(messages),
             domain_dimensions: domainDimensionScores,

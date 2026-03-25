@@ -130,22 +130,23 @@ function matchSessionsToBranch(branch, commits, projectPath) {
 }
 // ─── Decision gathering ───────────────────────────────────────────────────────
 function gatherDecisions(sessionIds) {
-    // First try plugin/daemon-captured decisions
+    // Get existing decisions from DB
     const existing = getDecisionsBySessions(sessionIds);
-    if (existing.length > 0)
-        return existing;
-    // Fall back to heuristic detection from messages
-    const heuristic = [];
+    // Also run heuristic detection on sessions that have no decisions yet
+    const sessionsWithDecisions = new Set(existing.map(d => d.session_id));
     for (const sid of sessionIds) {
+        if (sessionsWithDecisions.has(sid))
+            continue; // Already has decisions from Claude or previous heuristic
         const messages = getMessagesBySession(sid, 10000, 0);
+        if (messages.length < 3)
+            continue;
         const detected = detectDecisions(messages, sid);
-        // Persist detected decisions so they're available in future queries
         for (const d of detected) {
             insertDecision(d);
         }
-        heuristic.push(...detected);
+        existing.push(...detected);
     }
-    return heuristic;
+    return existing;
 }
 function getSignal(d) {
     return d.signal ?? 'low';
