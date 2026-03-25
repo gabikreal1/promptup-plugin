@@ -6,3 +6,4 @@ prompt-count
 session-end.json
 tool-events.jsonl
 update-available
+.npmrc

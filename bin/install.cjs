@@ -227,7 +227,7 @@ try {
 const pupSkillsDir = path.join(CLAUDE_DIR, 'skills', 'pup');
 fs.mkdirSync(pupSkillsDir, { recursive: true });
 
-for (const skill of ['eval', 'pr-report', 'status']) {
+for (const skill of ['eval', 'pr-report', 'status', 'config', 'update']) {
   const src = path.join(PLUGIN_DIR, 'skills', 'pup', skill);
   const dest = path.join(pupSkillsDir, skill);
   if (fs.existsSync(src)) {
@@ -377,6 +377,8 @@ ${bold}${green}PromptUp installed!${reset}
     /pup:eval           — Run an evaluation
     /pup:pr-report      — Generate PR report
     /pup:status         — Check status
+    /pup:config         — View/modify settings
+    /pup:update         — Check for updates
 
   ${bold}Statusline:${reset}
     pupmeter shows your latest score in the status bar
