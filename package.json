@@ -1,12 +1,51 @@
 {
-  "name": "@promptup/plugin",
-  "version": "1.0.0",
+  "name": "promptup-plugin",
+  "version": "0.2.2",
+  "description": "AI coding skill evaluator for Claude Code — 11-dimension scoring, decision intelligence, PR reports",
   "type": "module",
   "main": "./dist/index.js",
-  "bin": { "promptup-plugin": "./dist/index.js" },
+  "bin": {
+    "promptup-plugin": "bin/promptup-plugin"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "hooks",
+    "commands",
+    "statusline.sh"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "ai",
+    "evaluation",
+    "developer-tools",
+    "coding-skill",
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "promptup",
+    "session-analysis",
+    "decision-quality",
+    "pr-report"
+  ],
+  "author": "gabikreal1",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gabikreal1/promptup-plugin.git"
+  },
+  "homepage": "https://github.com/gabikreal1/promptup-plugin",
+  "bugs": {
+    "url": "https://github.com/gabikreal1/promptup-plugin/issues"
+  },
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "prepublishOnly": "echo 'Ensure dist/ is built before publishing'"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",

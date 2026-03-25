@@ -1,9 +1,4 @@
----
-name: eval
-description: Evaluate the current coding session across 11 dimensions. Spawns an independent Claude analysis of your session transcript for unbiased scoring.
-user-invocable: true
-argument-hint: [session-id]
----
+Evaluate your coding session across 11 skill dimensions
 
 Call `mcp__promptup__evaluate_session` with the session ID from `$ARGUMENTS` if provided, otherwise no arguments.
 

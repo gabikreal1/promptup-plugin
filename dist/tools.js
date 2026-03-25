@@ -17,6 +17,13 @@ import { ulid } from 'ulid';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { execSync } from 'node:child_process';
+function detectBranch() {
+    try {
+        return execSync('git branch --show-current', { encoding: 'utf-8', timeout: 5000 }).trim() || null;
+    }
+    catch { return null; }
+}
 import { loadConfig, updateConfig } from './config.js';
 function textResponse(text, isError = false) {
     return { content: [{ type: 'text', text }], ...(isError ? { isError } : {}) };
@@ -167,6 +174,7 @@ export async function handleEvaluateSession(args) {
                 id: sessionId,
                 project_path: process.cwd(),
                 transcript_path: transcriptPath,
+                branch: detectBranch(),
                 status: 'completed',
                 message_count: messages.length,
                 started_at: firstMsg.created_at,

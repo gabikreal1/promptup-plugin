@@ -2,7 +2,9 @@
   "mcpServers": {
     "promptup": {
       "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/index.js"]
+      "args": [
+        "/Users/gabik/.promptup/plugin/dist/index.js"
+      ]
     }
   }
 }

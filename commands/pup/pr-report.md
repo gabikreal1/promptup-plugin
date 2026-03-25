@@ -1,17 +1,6 @@
----
-name: pr-report
-description: Generate a Decision Quality Score (DQS) report for the current branch. Shows developer decisions made during AI-assisted coding, optionally posts to GitHub PR.
-user-invocable: true
-argument-hint: [--post] [--branch name]
----
+Generate a Decision Quality Score report for the current branch
 
-# /pr-report — PR Decision Report
-
-Generate a decision quality report for the current git branch using PromptUp MCP tools.
-
-## Instructions
-
-1. Parse the user's arguments (`$ARGUMENTS`):
+Parse the user's arguments (`$ARGUMENTS`):
    - If `--post` is present, set `post: true`
    - If `--branch <name>` is present, set `branch` to that value
    - Otherwise use defaults (current branch, no posting)

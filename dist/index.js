@@ -20,14 +20,14 @@ const server = new McpServer({
     version: '1.0.0',
 });
 // Tool 1: evaluate_session
-server.tool('evaluate_session', 'Evaluate a coding session across 11 skill dimensions. Spawns an independent Claude analysis of the session transcript. Returns composite score, dimension breakdown, trends, and recommendations.', {
+server.tool('evaluate_session', 'Evaluate a coding session across 11 skill dimensions. Spawns an independent Claude analysis of the session transcript. Extracts developer decisions (steers, rejects, validates, scopes). Returns composite score, dimension breakdown, trends, coaching recommendations with before/after examples. Session is tagged with current git branch for PR matching.', {
     session_id: z.string().optional().describe('Session ID to evaluate. If omitted, evaluates the most recent session.'),
 }, async (args) => {
     const result = await handleEvaluateSession(args);
     return { ...result };
 });
 // Tool 2: generate_pr_report
-server.tool('generate_pr_report', 'Generate a Decision Quality Score (DQS) report for a git branch. Matches commits to sessions, analyzes developer decisions, and produces a structured markdown report. Optionally posts as a GitHub PR comment.', {
+server.tool('generate_pr_report', 'Generate a Decision Quality Score (DQS) report for a git branch. Matches sessions to the branch via sessions.branch column (set on session creation). Auto-evaluates unscored sessions, extracts decisions, computes DQS (autonomy + discipline + validation + diversity). Optionally posts as a GitHub PR comment via gh CLI.', {
     branch: z.string().optional().describe('Git branch name. Defaults to current branch.'),
     post: z.boolean().optional().default(false).describe('If true, post the report as a GitHub PR comment via gh CLI.'),
 }, async (args) => {

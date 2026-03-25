@@ -7,10 +7,14 @@
  * STANDALONE copy — no imports from @promptup/shared or session-watcher.
  */
 import { spawn } from 'node:child_process';
+import { writeFileSync, unlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { ulid } from 'ulid';
 import { BASE_DIMENSIONS, BASE_DIMENSION_KEYS, DOMAIN_DIMENSIONS, DOMAIN_DIMENSION_KEYS, WEIGHT_PROFILES, } from './shared/dimensions.js';
 import { computeCompositeScore, computeDomainComposite, computeTechComposite, computeOverallComposite, computeGrandComposite, computeRiskFlagsWithHistory, } from './shared/scoring.js';
 import { getLatestEvaluation, insertEvaluation, insertDecision, } from './db.js';
+import { detectDecisions } from './decision-detector.js';
 /**
  * Combined role + skill roadmaps catalog for tech detection.
  * Mirrors the full list from @promptup/shared/roadmaps without importing it.
@@ -180,14 +184,20 @@ ${convo}
 Return ONLY valid JSON with no markdown formatting, no code fences, no extra text:
 {"dimensions":[{"key":"task_decomposition","score":0,"reasoning":"..."},{"key":"prompt_specificity","score":0,"reasoning":"..."},{"key":"output_validation","score":0,"reasoning":"..."},{"key":"iteration_quality","score":0,"reasoning":"..."},{"key":"strategic_tool_usage","score":0,"reasoning":"..."},{"key":"context_management","score":0,"reasoning":"..."}],"domain_dimensions":[{"key":"architectural_awareness","score":0,"reasoning":"..."},{"key":"error_anticipation","score":0,"reasoning":"..."},{"key":"technical_vocabulary","score":0,"reasoning":"..."},{"key":"dependency_reasoning","score":0,"reasoning":"..."},{"key":"tradeoff_articulation","score":0,"reasoning":"..."}],"tech_expertise":[{"roadmap":"typescript","score":75,"competencies":{"type_system":80,"generics":70}}],"recommendations":[{"dimension_key":"...","priority":"high","recommendation":"Add context to prompts","suggestions":["Instead of 'no', try 'no — terminal shows nothing after response'","Instead of 'yep', try 'yes, use the Stop hook approach'"]}],"activity_log":["Did X","Did Y","Fixed Z"],"decisions":[{"type":"steer","summary":"Chose bcrypt over argon2 — simpler dependency","signal":"high"},{"type":"validate","summary":"Ran integration tests after auth implementation","signal":"medium"}]}`;
 }
-function runClaudeCode(prompt, timeoutMs = 120_000) {
+function runClaudeCode(prompt, timeoutMs = 180_000) {
     return new Promise((resolve, reject) => {
+        // Write prompt to temp file to avoid stdin piping conflicts.
+        // The MCP server uses stdio for its protocol — spawning claude -p
+        // with piped stdin from within an MCP server causes hangs because
+        // the child's stdin competes with the parent's MCP pipe.
+        const tmpFile = join(tmpdir(), `promptup-eval-${Date.now()}.txt`);
+        writeFileSync(tmpFile, prompt, 'utf-8');
         // Strip CLAUDECODE env var to allow spawning from within a Claude Code session
         const env = { ...process.env };
         delete env.CLAUDECODE;
         delete env.CLAUDE_CODE;
-        const proc = spawn('claude', ['-p', '--output-format', 'text', '--no-session-persistence'], {
-            stdio: ['pipe', 'pipe', 'pipe'],
+        const proc = spawn('bash', ['-c', `cat "${tmpFile}" | claude -p --output-format text --no-session-persistence`], {
+            stdio: ['ignore', 'pipe', 'pipe'],
             env,
         });
         let stdout = '';
@@ -196,24 +206,24 @@ function runClaudeCode(prompt, timeoutMs = 120_000) {
         proc.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
         const timer = setTimeout(() => {
             proc.kill('SIGTERM');
-            reject(new Error(`Claude Code timed out after ${timeoutMs}ms`));
+            try { unlinkSync(tmpFile); } catch {}
+            reject(new Error(`[timeout] Claude Code timed out after ${timeoutMs}ms (prompt size: ${prompt.length} chars)`));
         }, timeoutMs);
         proc.on('close', (code) => {
             clearTimeout(timer);
+            try { unlinkSync(tmpFile); } catch {}
             if (code === 0) {
                 resolve(stdout.trim());
             }
             else {
-                reject(new Error(`Claude Code exited with code ${code}: ${stderr.slice(0, 500)}`));
+                reject(new Error(`[exit] Claude Code exited with code ${code}: ${stderr.slice(0, 1000)}`));
             }
         });
         proc.on('error', (err) => {
             clearTimeout(timer);
-            reject(err);
+            try { unlinkSync(tmpFile); } catch {}
+            reject(new Error(`[spawn] Could not start claude: ${err.message}`));
         });
-        // Write prompt to stdin and close
-        proc.stdin.write(prompt);
-        proc.stdin.end();
     });
 }
 function parseClaudeResponse(raw) {
@@ -250,9 +260,11 @@ export async function evaluateSession(sessionId, messages, triggerType, weightPr
     let recommendations = [];
     let usedClaude = false;
     try {
-        console.log(`[eval] Running Claude Code evaluation for session ${sessionId.slice(0, 8)}...`);
         const prompt = buildEvalPrompt(messages);
-        const rawOutput = await runClaudeCode(prompt);
+        // Scale timeout: 180s base + 1s per message over 100
+        const timeoutMs = 180_000 + Math.max(0, messages.length - 100) * 1000;
+        console.log(`[eval] Running Claude evaluation for ${sessionId.slice(0, 8)} (${messages.length} msgs, ${prompt.length} chars, timeout ${Math.round(timeoutMs / 1000)}s)...`);
+        const rawOutput = await runClaudeCode(prompt, timeoutMs);
         const result = parseClaudeResponse(rawOutput);
         usedClaude = true;
         // Store structured data in raw_evaluation (activity log + decisions + raw text)
@@ -340,13 +352,33 @@ export async function evaluateSession(sessionId, messages, triggerType, weightPr
         console.log(`[eval] Claude Code evaluation complete for ${sessionId.slice(0, 8)}`);
     }
     catch (err) {
-        console.warn(`[eval] Claude Code unavailable, using heuristic fallback:`, err.message);
+        const msg = err.message || String(err);
+        const category = msg.startsWith('[timeout]') ? 'TIMEOUT'
+            : msg.startsWith('[spawn]') ? 'SPAWN_FAILED'
+            : msg.startsWith('[exit]') ? 'PROCESS_ERROR'
+            : msg.includes('No JSON object found') ? 'PARSE_FAILED'
+            : msg.includes('Missing dimensions') ? 'INVALID_RESPONSE'
+            : 'UNKNOWN';
+        console.warn(`[eval] Claude failed (${category}), using heuristic fallback: ${msg}`);
         // Fall back to heuristic — generate basic activity log from messages
         const heuristic = heuristicEvaluate(messages, profile);
         dimensionScores = heuristic.dimensionScores;
         domainDimensionScores = heuristic.domainDimensionScores;
         techExpertise = heuristicTechDetect(messages);
         recommendations = heuristic.recommendations;
+        // Extract decisions via heuristic detector (Claude path does this via LLM)
+        try {
+            const heuristicDecisions = detectDecisions(messages, sessionId);
+            if (heuristicDecisions.length > 0) {
+                for (const d of heuristicDecisions) {
+                    insertDecision(d);
+                }
+                console.log(`[eval] Heuristic extracted ${heuristicDecisions.length} decisions`);
+            }
+        }
+        catch (decErr) {
+            console.warn(`[eval] Heuristic decision extraction failed: ${decErr}`);
+        }
         rawEvaluation = JSON.stringify({
             activity_log: heuristicActivityLog(messages),
             domain_dimensions: domainDimensionScores,
@@ -445,10 +477,23 @@ function heuristicEvaluate(messages, profile) {
         if (!def)
             continue;
         const next = def.ranges.find(r => r.min > dim.score);
+        const tipMap = {
+            task_decomposition: 'Break your next task into 2-3 explicit steps before starting',
+            prompt_specificity: 'Add one constraint or example to your next prompt',
+            output_validation: 'Check one output against your expectation before moving on',
+            iteration_quality: 'When something doesn\'t work, name what failed before retrying',
+            strategic_tool_usage: 'Try a different tool or approach for your next task',
+            context_management: 'Summarize where you are before switching topics',
+            architectural_awareness: 'Name one system-level concern before making a change',
+            error_anticipation: 'Ask "what could break?" once before implementing',
+            technical_vocabulary: 'Use the precise term for what you\'re describing',
+            dependency_reasoning: 'Trace one data flow before changing it',
+            tradeoff_articulation: 'Name one alternative you considered and why you didn\'t pick it',
+        };
         recommendations.push({
             dimension_key: dim.key,
             priority: dim.score < 35 ? 'high' : dim.score < 55 ? 'medium' : 'low',
-            recommendation: next ? `Aim for: ${next.description}` : 'Continue current approach',
+            recommendation: tipMap[dim.key] || (next ? `Build toward: ${next.label}` : 'Continue current approach'),
             suggestions: def.signals.slice(0, 2),
         });
     }
