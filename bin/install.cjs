@@ -147,16 +147,16 @@ const mcpEntry = {
 };
 
 if (scope === 'global') {
-  // Add to ~/.claude/settings.local.json
-  const settingsPath = path.join(CLAUDE_DIR, 'settings.local.json');
-  const settings = fs.existsSync(settingsPath)
-    ? JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
+  // Add to ~/.claude/.mcp.json (global MCP config)
+  const mcpPath = path.join(CLAUDE_DIR, '.mcp.json');
+  const mcp = fs.existsSync(mcpPath)
+    ? JSON.parse(fs.readFileSync(mcpPath, 'utf-8'))
     : {};
 
-  if (!settings.mcpServers) settings.mcpServers = {};
-  settings.mcpServers.promptup = mcpEntry;
-  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
-  console.log(`  ${green}✓${reset} MCP server → ~/.claude/settings.local.json (global)`);
+  if (!mcp.mcpServers) mcp.mcpServers = {};
+  mcp.mcpServers.promptup = mcpEntry;
+  fs.writeFileSync(mcpPath, JSON.stringify(mcp, null, 2) + '\n');
+  console.log(`  ${green}✓${reset} MCP server → ~/.claude/.mcp.json (global)`);
 } else {
   // Add to .mcp.json in current directory
   const mcpPath = path.join(process.cwd(), '.mcp.json');
