@@ -8,17 +8,29 @@
           "command": "cat >> \"${CLAUDE_PLUGIN_DATA:-$HOME/.promptup}/tool-events.jsonl\"",
           "async": true
         }]
-      }
-    ],
-    "Stop": [
+      },
       {
-        "matcher": "",
+        "matcher": "mcp__promptup__evaluate_session",
         "hooks": [{
           "type": "command",
-          "command": "cat > \"${CLAUDE_PLUGIN_DATA:-$HOME/.promptup}/session-end.json\"",
-          "async": true
+          "command": "bash \"${CLAUDE_PLUGIN_ROOT:-$HOME/.promptup/plugin}/hooks/render-eval.sh\""
+        }]
+      },
+      {
+        "matcher": "mcp__promptup__generate_pr_report",
+        "hooks": [{
+          "type": "command",
+          "command": "bash \"${CLAUDE_PLUGIN_ROOT:-$HOME/.promptup/plugin}/hooks/render-eval.sh\""
         }]
       }
-    ]
+    ],
+    "Stop": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": "cat > \"${CLAUDE_PLUGIN_DATA:-$HOME/.promptup}/session-end.json\"",
+        "async": true
+      }]
+    }]
   }
 }
