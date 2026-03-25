@@ -23,12 +23,12 @@ Every Claude Code session is passively tracked via hooks. On session creation, t
 ### PR reports
 `/pup:pr-report` matches sessions to the current branch, auto-evaluates unscored sessions, gathers all decisions, and computes a Decision Quality Score (DQS). The session-to-PR link uses `sessions.branch` — set when the session was created. Optionally posts as a GitHub PR comment.
 
-### DQS formula
+### Decision Quality Score formula
 ```
-DQS = autonomy * 25% + discipline * 25% + validation * 30% + diversity * 20%
+DQS = autonomy * 25% + accept ratio * 25% + validation * 30% + diversity * 20%
 ```
 - **Autonomy**: How often you steer, reject, or modify AI output vs accepting
-- **Discipline**: Ratio of modifications to blind accepts
+- **accept ratio**: Ratio of modifications to blind accepts
 - **Validation**: How often you verify/test output
 - **Diversity**: How many decision types you use (steer, reject, validate, modify, scope, accept)
 
