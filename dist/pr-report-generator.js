@@ -280,6 +280,7 @@ export async function generatePRReport(options) {
                     id: sid,
                     project_path: projectPath ?? process.cwd(),
                     transcript_path: latestTranscript,
+                    branch: branch,
                     status: 'completed',
                     message_count: msgs.length,
                     started_at: msgs[0].created_at,

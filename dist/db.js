@@ -40,6 +40,7 @@ export function initDatabase() {
       id TEXT PRIMARY KEY,
       project_path TEXT,
       transcript_path TEXT,
+      branch TEXT,
       status TEXT DEFAULT 'active',
       message_count INTEGER DEFAULT 0,
       started_at TEXT NOT NULL,
@@ -131,6 +132,11 @@ export function initDatabase() {
     );
     CREATE INDEX IF NOT EXISTS idx_pr_reports_branch ON pr_reports(branch, repo);
   `);
+    // Migrations — add columns to existing databases
+    try {
+        instance.exec('ALTER TABLE sessions ADD COLUMN branch TEXT');
+    }
+    catch { /* column already exists */ }
     db = instance;
 }
 export function closeDatabase() {
@@ -143,11 +149,11 @@ export function closeDatabase() {
 export function insertSession(session) {
     const d = getDb();
     d.prepare(`
-    INSERT OR IGNORE INTO sessions (id, project_path, transcript_path, status,
+    INSERT OR IGNORE INTO sessions (id, project_path, transcript_path, branch, status,
       message_count, started_at, ended_at, created_at)
-    VALUES (@id, @project_path, @transcript_path, @status,
+    VALUES (@id, @project_path, @transcript_path, @branch, @status,
       @message_count, @started_at, @ended_at, @created_at)
-  `).run(session);
+  `).run({ branch: null, ...session });
 }
 export function getSession(id) {
     const row = getDb()
@@ -279,10 +285,20 @@ export function insertGitActivity(activity) {
     });
 }
 export function getSessionsByBranch(branch) {
-    const rows = getDb()
+    const d = getDb();
+    // Primary: sessions with branch column set directly
+    const direct = d
+        .prepare('SELECT id FROM sessions WHERE branch = ? ORDER BY created_at')
+        .all(branch)
+        .map((r) => r.id);
+    // Supplement: sessions linked via git_activities
+    const fromGit = d
         .prepare('SELECT DISTINCT session_id FROM git_activities WHERE branch = ? ORDER BY created_at')
-        .all(branch);
-    return rows.map((r) => r.session_id);
+        .all(branch)
+        .map((r) => r.session_id);
+    // Merge, deduplicate
+    const all = [...new Set([...direct, ...fromGit])];
+    return all;
 }
 // ─── Session matching ────────────────────────────────────────────────────────
 export function getSessionsByTimeRange(from, to, projectPath) {
