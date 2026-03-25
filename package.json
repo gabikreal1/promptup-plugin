@@ -1,6 +1,6 @@
 {
   "name": "promptup-plugin",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "AI coding skill evaluator for Claude Code — 11-dimension scoring, decision intelligence, PR reports",
   "type": "module",
   "main": "./dist/index.js",
