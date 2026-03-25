@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { execSync } = require('child_process');
 
 // Colors
 const cyan = '\x1b[36m';
@@ -40,26 +41,104 @@ if (hasUninstall) {
   console.log(`${yellow}Uninstalling PromptUp...${reset}\n`);
 
   // Remove skills
-  const skillsDir = path.join(CLAUDE_DIR, 'skills');
   for (const skill of ['eval', 'pr-report', 'status']) {
-    const dest = path.join(skillsDir, skill);
+    const dest = path.join(CLAUDE_DIR, 'skills', skill);
     if (fs.existsSync(dest)) {
       fs.rmSync(dest, { recursive: true });
       console.log(`  ${red}✗${reset} Removed skill: ${skill}`);
     }
   }
 
-  // Remove MCP from global settings
-  const settingsLocal = path.join(CLAUDE_DIR, 'settings.local.json');
-  if (fs.existsSync(settingsLocal)) {
+  // Remove hooks from settings.json
+  const settingsPath = path.join(CLAUDE_DIR, 'settings.json');
+  if (fs.existsSync(settingsPath)) {
     try {
-      const settings = JSON.parse(fs.readFileSync(settingsLocal, 'utf-8'));
-      if (settings.mcpServers?.promptup) {
-        delete settings.mcpServers.promptup;
-        fs.writeFileSync(settingsLocal, JSON.stringify(settings, null, 2) + '\n');
-        console.log(`  ${red}✗${reset} Removed MCP server from settings.local.json`);
+      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+      let changed = false;
+
+      for (const event of ['SessionStart', 'UserPromptSubmit']) {
+        if (settings.hooks?.[event]) {
+          settings.hooks[event] = settings.hooks[event].filter(
+            (h) => !h.hooks?.some((hk) => hk.command?.includes('.promptup')),
+          );
+          if (settings.hooks[event].length === 0) delete settings.hooks[event];
+          changed = true;
+        }
+      }
+
+      if (settings.statusLine?.command?.includes('.promptup')) {
+        delete settings.statusLine;
+        changed = true;
+      }
+
+      if (changed) {
+        if (settings.hooks && Object.keys(settings.hooks).length === 0) delete settings.hooks;
+        fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
+        console.log(`  ${red}✗${reset} Removed hooks and statusline from settings.json`);
       }
     } catch {}
+  }
+
+  // Also clean settings.local.json (from older installs)
+  const settingsLocalPath = path.join(CLAUDE_DIR, 'settings.local.json');
+  if (fs.existsSync(settingsLocalPath)) {
+    try {
+      const settings = JSON.parse(fs.readFileSync(settingsLocalPath, 'utf-8'));
+      let changed = false;
+
+      for (const event of ['SessionStart', 'UserPromptSubmit']) {
+        if (settings.hooks?.[event]) {
+          settings.hooks[event] = settings.hooks[event].filter(
+            (h) => !h.hooks?.some((hk) => hk.command?.includes('.promptup')),
+          );
+          if (settings.hooks[event].length === 0) delete settings.hooks[event];
+          changed = true;
+        }
+      }
+
+      if (settings.statusLine?.command?.includes('.promptup')) {
+        delete settings.statusLine;
+        changed = true;
+      }
+
+      if (changed) {
+        if (settings.hooks && Object.keys(settings.hooks).length === 0) delete settings.hooks;
+        const remaining = Object.keys(settings).length;
+        if (remaining === 0) {
+          fs.unlinkSync(settingsLocalPath);
+        } else {
+          fs.writeFileSync(settingsLocalPath, JSON.stringify(settings, null, 2) + '\n');
+        }
+        console.log(`  ${red}✗${reset} Cleaned settings.local.json`);
+      }
+    } catch {}
+  }
+
+  // Remove MCP from .mcp.json files
+  for (const mcpPath of [
+    path.join(CLAUDE_DIR, '.mcp.json'),
+    path.join(process.cwd(), '.mcp.json'),
+  ]) {
+    if (fs.existsSync(mcpPath)) {
+      try {
+        const mcp = JSON.parse(fs.readFileSync(mcpPath, 'utf-8'));
+        if (mcp.mcpServers?.promptup) {
+          delete mcp.mcpServers.promptup;
+          if (Object.keys(mcp.mcpServers).length === 0) {
+            fs.unlinkSync(mcpPath);
+          } else {
+            fs.writeFileSync(mcpPath, JSON.stringify(mcp, null, 2) + '\n');
+          }
+          console.log(`  ${red}✗${reset} Removed MCP from ${mcpPath}`);
+        }
+      } catch {}
+    }
+  }
+
+  // Remove plugin dir
+  if (fs.existsSync(PLUGIN_DIR)) {
+    fs.rmSync(PLUGIN_DIR, { recursive: true });
+    console.log(`  ${red}✗${reset} Removed plugin at ${PLUGIN_DIR}`);
   }
 
   console.log(`\n${green}PromptUp uninstalled.${reset}`);
@@ -74,7 +153,6 @@ if (hasLocal) scope = 'local';
 if (hasGlobal) scope = 'global';
 
 if (!hasLocal && !hasGlobal) {
-  // Default to global
   scope = 'global';
   console.log(`${dim}Installing globally (use --local for project-only)${reset}\n`);
 }
@@ -87,7 +165,6 @@ const packageRoot = path.resolve(__dirname, '..');
 
 console.log(`${bold}Setting up PromptUp...${reset}\n`);
 
-// Ensure dirs exist
 fs.mkdirSync(PLUGIN_DIR, { recursive: true });
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
@@ -97,7 +174,6 @@ console.log(`  ${green}✓${reset} Installed plugin runtime`);
 
 // Copy hooks/
 copyDirSync(path.join(packageRoot, 'hooks'), path.join(PLUGIN_DIR, 'hooks'));
-// Make hooks executable
 for (const f of fs.readdirSync(path.join(PLUGIN_DIR, 'hooks'))) {
   if (f.endsWith('.sh')) {
     fs.chmodSync(path.join(PLUGIN_DIR, 'hooks', f), 0o755);
@@ -119,13 +195,28 @@ if (fs.existsSync(path.join(packageRoot, 'statusline.sh'))) {
   console.log(`  ${green}✓${reset} Installed statusline`);
 }
 
-// Copy package.json for version tracking
+// Copy package.json for version tracking + dependency install
 fs.copyFileSync(
   path.join(packageRoot, 'package.json'),
   path.join(PLUGIN_DIR, 'package.json'),
 );
 
-// ─── Step 2: Install skills to ~/.claude/skills/ ────────────────────────────
+// ─── Step 2: Install dependencies ───────────────────────────────────────────
+
+console.log(`  ${dim}Installing dependencies (better-sqlite3, MCP SDK)...${reset}`);
+try {
+  execSync('npm install --production --no-audit --no-fund', {
+    cwd: PLUGIN_DIR,
+    stdio: 'pipe',
+    timeout: 120000,
+  });
+  console.log(`  ${green}✓${reset} Dependencies installed`);
+} catch (err) {
+  console.log(`  ${red}✗${reset} Dependency install failed: ${err.message}`);
+  console.log(`  ${yellow}Try manually: cd ${PLUGIN_DIR} && npm install --production${reset}`);
+}
+
+// ─── Step 3: Install skills to ~/.claude/skills/ ────────────────────────────
 
 const skillsDir = path.join(CLAUDE_DIR, 'skills');
 fs.mkdirSync(skillsDir, { recursive: true });
@@ -139,40 +230,38 @@ for (const skill of ['eval', 'pr-report', 'status']) {
   }
 }
 
-// ─── Step 3: Configure MCP server ───────────────────────────────────────────
+// ─── Step 4: Configure MCP server ───────────────────────────────────────────
 
 const mcpEntry = {
   command: 'node',
   args: [path.join(PLUGIN_DIR, 'dist', 'index.js')],
 };
 
-if (scope === 'global') {
-  // Add to ~/.claude/.mcp.json (global MCP config)
-  const mcpPath = path.join(CLAUDE_DIR, '.mcp.json');
-  const mcp = fs.existsSync(mcpPath)
-    ? JSON.parse(fs.readFileSync(mcpPath, 'utf-8'))
-    : {};
+// MCP always goes to project .mcp.json (Claude Code reads MCP from here)
+const mcpPath = path.join(process.cwd(), '.mcp.json');
+const mcp = fs.existsSync(mcpPath)
+  ? JSON.parse(fs.readFileSync(mcpPath, 'utf-8'))
+  : {};
 
-  if (!mcp.mcpServers) mcp.mcpServers = {};
-  mcp.mcpServers.promptup = mcpEntry;
-  fs.writeFileSync(mcpPath, JSON.stringify(mcp, null, 2) + '\n');
-  console.log(`  ${green}✓${reset} MCP server → ~/.claude/.mcp.json (global)`);
-} else {
-  // Add to .mcp.json in current directory
-  const mcpPath = path.join(process.cwd(), '.mcp.json');
-  const mcp = fs.existsSync(mcpPath)
-    ? JSON.parse(fs.readFileSync(mcpPath, 'utf-8'))
-    : {};
+if (!mcp.mcpServers) mcp.mcpServers = {};
+mcp.mcpServers.promptup = mcpEntry;
+fs.writeFileSync(mcpPath, JSON.stringify(mcp, null, 2) + '\n');
+console.log(`  ${green}✓${reset} MCP server → .mcp.json`);
 
-  if (!mcp.mcpServers) mcp.mcpServers = {};
-  mcp.mcpServers.promptup = mcpEntry;
-  fs.writeFileSync(mcpPath, JSON.stringify(mcp, null, 2) + '\n');
-  console.log(`  ${green}✓${reset} MCP server → .mcp.json (local)`);
+// Also try to register globally via claude CLI (silent fail if not available)
+try {
+  execSync(
+    `claude mcp add promptup -s user -- node ${path.join(PLUGIN_DIR, 'dist', 'index.js')}`,
+    { stdio: 'pipe', timeout: 10000 },
+  );
+  console.log(`  ${green}✓${reset} MCP server → claude global config`);
+} catch {
+  // claude CLI not available or failed — that's fine, .mcp.json is enough
 }
 
-// ─── Step 4: Configure hooks ────────────────────────────────────────────────
+// ─── Step 5: Configure hooks (in settings.json like GSD does) ───────────────
 
-const settingsPath = path.join(CLAUDE_DIR, 'settings.local.json');
+const settingsPath = path.join(CLAUDE_DIR, 'settings.json');
 const settings = fs.existsSync(settingsPath)
   ? JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
   : {};
@@ -217,7 +306,7 @@ if (!hasAutoEval) {
   console.log(`  ${green}✓${reset} Hook: UserPromptSubmit → auto-eval`);
 }
 
-// Statusline
+// Statusline (respect existing — prompt if already set, like GSD)
 if (!settings.statusLine) {
   settings.statusLine = {
     type: 'command',
@@ -225,11 +314,13 @@ if (!settings.statusLine) {
     padding: 2,
   };
   console.log(`  ${green}✓${reset} Statusline: pupmeter`);
+} else if (!settings.statusLine.command?.includes('.promptup')) {
+  console.log(`  ${yellow}⚠${reset} Statusline already configured — skipped (existing: ${settings.statusLine.command?.slice(0, 40)}...)`);
 }
 
 fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
 
-// ─── Step 5: Create default config ─────────────────────────────────────────
+// ─── Step 6: Create default config ─────────────────────────────────────────
 
 const configPath = path.join(DATA_DIR, 'config.json');
 if (!fs.existsSync(configPath)) {
