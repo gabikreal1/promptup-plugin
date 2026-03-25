@@ -1,0 +1,10 @@
+{
+  "name": "promptup",
+  "version": "1.0.0",
+  "description": "AI coding skill evaluator — 11-dimension session scoring, decision tracking, PR reports",
+  "author": { "name": "PromptUp" },
+  "license": "MIT",
+  "skills": "../skills/",
+  "hooks": "../hooks/hooks.json",
+  "mcpServers": "../.mcp.json"
+}

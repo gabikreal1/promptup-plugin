@@ -1,0 +1,8 @@
+node_modules/
+*.db
+*.db-wal
+*.db-shm
+prompt-count
+session-end.json
+tool-events.jsonl
+update-available
