@@ -7,6 +7,9 @@
  * STANDALONE copy — no imports from @promptup/shared or session-watcher.
  */
 import { spawn } from 'node:child_process';
+import { writeFileSync, unlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { ulid } from 'ulid';
 import { BASE_DIMENSIONS, BASE_DIMENSION_KEYS, DOMAIN_DIMENSIONS, DOMAIN_DIMENSION_KEYS, WEIGHT_PROFILES, } from './shared/dimensions.js';
 import { computeCompositeScore, computeDomainComposite, computeTechComposite, computeOverallComposite, computeGrandComposite, computeRiskFlagsWithHistory, } from './shared/scoring.js';
@@ -183,12 +186,18 @@ Return ONLY valid JSON with no markdown formatting, no code fences, no extra tex
 }
 function runClaudeCode(prompt, timeoutMs = 180_000) {
     return new Promise((resolve, reject) => {
+        // Write prompt to temp file to avoid stdin piping conflicts.
+        // The MCP server uses stdio for its protocol — spawning claude -p
+        // with piped stdin from within an MCP server causes hangs because
+        // the child's stdin competes with the parent's MCP pipe.
+        const tmpFile = join(tmpdir(), `promptup-eval-${Date.now()}.txt`);
+        writeFileSync(tmpFile, prompt, 'utf-8');
         // Strip CLAUDECODE env var to allow spawning from within a Claude Code session
         const env = { ...process.env };
         delete env.CLAUDECODE;
         delete env.CLAUDE_CODE;
-        const proc = spawn('claude', ['-p', '--output-format', 'text', '--no-session-persistence'], {
-            stdio: ['pipe', 'pipe', 'pipe'],
+        const proc = spawn('bash', ['-c', `cat "${tmpFile}" | claude -p --output-format text --no-session-persistence`], {
+            stdio: ['ignore', 'pipe', 'pipe'],
             env,
         });
         let stdout = '';
@@ -197,10 +206,12 @@ function runClaudeCode(prompt, timeoutMs = 180_000) {
         proc.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
         const timer = setTimeout(() => {
             proc.kill('SIGTERM');
+            try { unlinkSync(tmpFile); } catch {}
             reject(new Error(`[timeout] Claude Code timed out after ${timeoutMs}ms (prompt size: ${prompt.length} chars)`));
         }, timeoutMs);
         proc.on('close', (code) => {
             clearTimeout(timer);
+            try { unlinkSync(tmpFile); } catch {}
             if (code === 0) {
                 resolve(stdout.trim());
             }
@@ -210,17 +221,9 @@ function runClaudeCode(prompt, timeoutMs = 180_000) {
         });
         proc.on('error', (err) => {
             clearTimeout(timer);
+            try { unlinkSync(tmpFile); } catch {}
             reject(new Error(`[spawn] Could not start claude: ${err.message}`));
         });
-        // Write prompt to stdin with backpressure handling
-        const ok = proc.stdin.write(prompt);
-        if (!ok) {
-            // Buffer is full — wait for drain before closing
-            proc.stdin.once('drain', () => { proc.stdin.end(); });
-        }
-        else {
-            proc.stdin.end();
-        }
     });
 }
 function parseClaudeResponse(raw) {
