@@ -1,9 +1,3 @@
----
-name: config
-description: Show or modify PromptUp configuration. View all settings, get a specific value, or update settings.
-user-invocable: true
-argument-hint: [key=value ...]
----
 
 Parse `$ARGUMENTS`:
 - No args → call `mcp__promptup__configure` with no parameters to show all settings

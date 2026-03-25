@@ -1,8 +1,3 @@
----
-name: status
-description: Show PromptUp tracking status — recent sessions, evaluations, and decision counts.
-user-invocable: true
----
 
 # /status — PromptUp Status
 

@@ -1,9 +1,3 @@
----
-name: pr-report
-description: Generate a Decision Quality Score (DQS) report for the current branch. Shows developer decisions made during AI-assisted coding, optionally posts to GitHub PR.
-user-invocable: true
-argument-hint: [--post] [--branch name]
----
 
 # /pr-report — PR Decision Report
 

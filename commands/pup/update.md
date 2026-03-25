@@ -1,8 +1,3 @@
----
-name: update
-description: Check for and install PromptUp plugin updates from npm.
-user-invocable: true
----
 
 1. Check the current installed version:
    ```bash

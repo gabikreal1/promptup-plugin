@@ -40,18 +40,18 @@ ${bold}${cyan}  └────────────────────�
 if (hasUninstall) {
   console.log(`${yellow}Uninstalling PromptUp...${reset}\n`);
 
-  // Remove skills (pup namespace)
-  const pupDir = path.join(CLAUDE_DIR, 'skills', 'pup');
-  if (fs.existsSync(pupDir)) {
-    fs.rmSync(pupDir, { recursive: true });
-    console.log(`  ${red}✗${reset} Removed skills: /pup:eval, /pup:pr-report, /pup:status`);
+  // Remove commands (pup namespace)
+  const pupCmdsDir = path.join(CLAUDE_DIR, 'commands', 'pup');
+  if (fs.existsSync(pupCmdsDir)) {
+    fs.rmSync(pupCmdsDir, { recursive: true });
+    console.log(`  ${red}✗${reset} Removed commands: /pup:eval, /pup:pr-report, /pup:status, /pup:config, /pup:update`);
   }
-  // Also clean up old non-namespaced skills from previous versions
-  for (const skill of ['eval', 'pr-report', 'status']) {
-    const dest = path.join(CLAUDE_DIR, 'skills', skill);
+  // Also clean up old skill-based installs from previous versions
+  for (const loc of ['skills/pup', 'skills/pup-eval', 'skills/pup-pr-report', 'skills/pup-status', 'skills/pup-config', 'skills/pup-update', 'skills/eval', 'skills/pr-report', 'skills/status']) {
+    const dest = path.join(CLAUDE_DIR, loc);
     if (fs.existsSync(dest)) {
       fs.rmSync(dest, { recursive: true });
-      console.log(`  ${red}✗${reset} Removed legacy skill: ${skill}`);
+      console.log(`  ${red}✗${reset} Removed legacy: ${loc}`);
     }
   }
 
@@ -187,9 +187,9 @@ for (const f of fs.readdirSync(path.join(PLUGIN_DIR, 'hooks'))) {
 }
 console.log(`  ${green}✓${reset} Installed hooks`);
 
-// Copy skills/
-copyDirSync(path.join(packageRoot, 'skills'), path.join(PLUGIN_DIR, 'skills'));
-console.log(`  ${green}✓${reset} Installed skills`);
+// Copy commands/
+copyDirSync(path.join(packageRoot, 'commands'), path.join(PLUGIN_DIR, 'commands'));
+console.log(`  ${green}✓${reset} Installed commands`);
 
 // Copy statusline
 if (fs.existsSync(path.join(packageRoot, 'statusline.sh'))) {
@@ -222,17 +222,17 @@ try {
   console.log(`  ${yellow}Try manually: cd ${PLUGIN_DIR} && npm install --production${reset}`);
 }
 
-// ─── Step 3: Install skills to ~/.claude/skills/pup/ ────────────────────────
+// ─── Step 3: Install commands to ~/.claude/commands/pup/ ─────────────────────
 
-const pupSkillsDir = path.join(CLAUDE_DIR, 'skills', 'pup');
-fs.mkdirSync(pupSkillsDir, { recursive: true });
+const pupCmdsDir = path.join(CLAUDE_DIR, 'commands', 'pup');
+fs.mkdirSync(pupCmdsDir, { recursive: true });
 
-for (const skill of ['eval', 'pr-report', 'status', 'config', 'update']) {
-  const src = path.join(PLUGIN_DIR, 'skills', 'pup', skill);
-  const dest = path.join(pupSkillsDir, skill);
+for (const cmd of ['eval', 'pr-report', 'status', 'config', 'update']) {
+  const src = path.join(PLUGIN_DIR, 'commands', 'pup', `${cmd}.md`);
+  const dest = path.join(pupCmdsDir, `${cmd}.md`);
   if (fs.existsSync(src)) {
-    copyDirSync(src, dest);
-    console.log(`  ${green}✓${reset} Skill: /pup:${skill}`);
+    fs.copyFileSync(src, dest);
+    console.log(`  ${green}✓${reset} Command: /pup:${cmd}`);
   }
 }
 
