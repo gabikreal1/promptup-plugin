@@ -1,3 +1,4 @@
+Evaluate your coding session across 11 skill dimensions
 
 Call `mcp__promptup__evaluate_session` with the session ID from `$ARGUMENTS` if provided, otherwise no arguments.
 

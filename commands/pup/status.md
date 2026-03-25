@@ -1,11 +1,6 @@
+Show PromptUp tracking status — sessions, evaluations, decisions
 
-# /status — PromptUp Status
-
-Show the current state of PromptUp tracking.
-
-## Instructions
-
-1. Call the `mcp__promptup__get_status` tool.
+Call the `mcp__promptup__get_status` tool.
 
 2. Present the results as a clean summary:
 

@@ -1,3 +1,4 @@
+View or modify PromptUp settings
 
 Parse `$ARGUMENTS`:
 - No args → call `mcp__promptup__configure` with no parameters to show all settings

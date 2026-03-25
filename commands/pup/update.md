@@ -1,3 +1,4 @@
+Check for and install PromptUp plugin updates
 
 1. Check the current installed version:
    ```bash
