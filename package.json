@@ -1,9 +1,35 @@
 {
   "name": "@promptup/plugin",
   "version": "1.0.0",
+  "description": "AI coding skill evaluator for Claude Code — 11-dimension scoring, decision intelligence, PR reports",
   "type": "module",
   "main": "./dist/index.js",
-  "bin": { "promptup-plugin": "./dist/index.js" },
+  "bin": {
+    "promptup": "./bin/install.cjs"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "hooks",
+    "skills",
+    "statusline.sh"
+  ],
+  "keywords": [
+    "claude",
+    "claude-code",
+    "ai",
+    "evaluation",
+    "developer-tools",
+    "coding-skill",
+    "mcp",
+    "promptup"
+  ],
+  "author": "gabikreal1",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gabikreal1/promptup-plugin.git"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch"
