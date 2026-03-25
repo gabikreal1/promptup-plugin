@@ -254,10 +254,7 @@ export async function generatePRReport(options) {
     // We need the repo for the cache key — get it first
     const ghAvailable = await checkGhAvailable();
     const repo = ghAvailable ? await getRepo(projectPath) : '';
-    const cached = getPRReportByBranch(branch, repo);
-    if (cached) {
-        return { report: cached, isNew: false };
-    }
+    // Always regenerate — no cache. Scores evolve as more evals run.
     // 3. Get PR info
     let prInfo = null;
     if (ghAvailable) {
@@ -295,19 +292,8 @@ export async function generatePRReport(options) {
             }
         }
     }
-    // 6. Gather decisions
-    const decisions = gatherDecisions(sessionIds);
-    // 7. Compute DQS — use validate decisions as proxy for validation rate
-    const validateCount = decisions.filter(d => d.type === 'validate').length;
-    const validationRate = decisions.length > 0 ? validateCount / decisions.length : 0;
-    const dqs = computeDQS(decisions, validationRate);
-    // 8. Build decision breakdown
-    const breakdown = {};
-    for (const d of decisions) {
-        const t = d.type;
-        breakdown[t] = (breakdown[t] ?? 0) + 1;
-    }
-    // 9. Auto-eval sessions that haven't been evaluated yet
+    // 6. Auto-eval sessions FIRST so decisions get extracted before DQS
+    //    This makes /pr-report self-contained — no need to run /eval first
     //    This makes /pr-report self-contained — no need to run /eval first
     for (const sid of sessionIds) {
         const existingEval = getLatestEvaluation(sid);
@@ -332,6 +318,18 @@ export async function generatePRReport(options) {
                 }
             }
         }
+    }
+    // 7. Now gather decisions (AFTER auto-eval extracted them)
+    const decisions = gatherDecisions(sessionIds);
+    // 8. Compute DQS
+    const validateCount = decisions.filter(d => d.type === 'validate').length;
+    const validationRate = decisions.length > 0 ? validateCount / decisions.length : 0;
+    const dqs = computeDQS(decisions, validationRate);
+    // 9. Build decision breakdown
+    const breakdown = {};
+    for (const d of decisions) {
+        const t = d.type;
+        breakdown[t] = (breakdown[t] ?? 0) + 1;
     }
     // 10. Fetch evaluations (averaged across all evals) + message counts
     let compositeScore = null;
