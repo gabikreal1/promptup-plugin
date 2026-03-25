@@ -3,6 +3,7 @@
 AI coding skill evaluator for Claude Code — 11-dimension scoring, decision intelligence, PR reports.
 
 Zero infrastructure. Just SQLite at `~/.promptup/`.
+<img width="723" height="816" alt="Screenshot 2026-03-25 at 20 28 31" src="https://github.com/user-attachments/assets/dbd35dde-b842-46a9-85a4-a82e91f2197d" />
 
 ## Install
 
