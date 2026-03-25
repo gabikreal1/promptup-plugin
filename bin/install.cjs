@@ -40,12 +40,18 @@ ${bold}${cyan}  └────────────────────�
 if (hasUninstall) {
   console.log(`${yellow}Uninstalling PromptUp...${reset}\n`);
 
-  // Remove skills
+  // Remove skills (pup namespace)
+  const pupDir = path.join(CLAUDE_DIR, 'skills', 'pup');
+  if (fs.existsSync(pupDir)) {
+    fs.rmSync(pupDir, { recursive: true });
+    console.log(`  ${red}✗${reset} Removed skills: /pup:eval, /pup:pr-report, /pup:status`);
+  }
+  // Also clean up old non-namespaced skills from previous versions
   for (const skill of ['eval', 'pr-report', 'status']) {
     const dest = path.join(CLAUDE_DIR, 'skills', skill);
     if (fs.existsSync(dest)) {
       fs.rmSync(dest, { recursive: true });
-      console.log(`  ${red}✗${reset} Removed skill: ${skill}`);
+      console.log(`  ${red}✗${reset} Removed legacy skill: ${skill}`);
     }
   }
 
@@ -216,17 +222,17 @@ try {
   console.log(`  ${yellow}Try manually: cd ${PLUGIN_DIR} && npm install --production${reset}`);
 }
 
-// ─── Step 3: Install skills to ~/.claude/skills/ ────────────────────────────
+// ─── Step 3: Install skills to ~/.claude/skills/pup/ ────────────────────────
 
-const skillsDir = path.join(CLAUDE_DIR, 'skills');
-fs.mkdirSync(skillsDir, { recursive: true });
+const pupSkillsDir = path.join(CLAUDE_DIR, 'skills', 'pup');
+fs.mkdirSync(pupSkillsDir, { recursive: true });
 
 for (const skill of ['eval', 'pr-report', 'status']) {
-  const src = path.join(PLUGIN_DIR, 'skills', skill);
-  const dest = path.join(skillsDir, skill);
+  const src = path.join(PLUGIN_DIR, 'skills', 'pup', skill);
+  const dest = path.join(pupSkillsDir, skill);
   if (fs.existsSync(src)) {
     copyDirSync(src, dest);
-    console.log(`  ${green}✓${reset} Skill: /${skill}`);
+    console.log(`  ${green}✓${reset} Skill: /pup:${skill}`);
   }
 }
 
@@ -368,9 +374,9 @@ ${bold}${green}PromptUp installed!${reset}
     configure           — View/modify settings
 
   ${bold}Skills:${reset}
-    /eval               — Run an evaluation
-    /pr-report          — Generate PR report
-    /status             — Check status
+    /pup:eval           — Run an evaluation
+    /pup:pr-report      — Generate PR report
+    /pup:status         — Check status
 
   ${bold}Statusline:${reset}
     pupmeter shows your latest score in the status bar
